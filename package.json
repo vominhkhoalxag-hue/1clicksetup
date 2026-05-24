@@ -1,12 +1,13 @@
 {
   "name": "1clicksetup",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cài đặt tự động phần mềm Windows — 1 click",
   "main": "main/main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",
-    "build:portable": "electron-builder --win portable"
+    "build:portable": "electron-builder --win portable",
+    "build:all": "electron-builder --win nsis portable"
   },
   "build": {
     "appId": "vn.1clicksetup",
@@ -19,14 +20,8 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
-        }
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ],
       "icon": "assets/icon.ico",
       "requestedExecutionLevel": "requireAdministrator"
@@ -43,7 +38,7 @@
     }
   },
   "devDependencies": {
-    "electron": "^28.0.0",
-    "electron-builder": "^24.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
   }
 }

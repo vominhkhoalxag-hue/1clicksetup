@@ -1,23 +1,21 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { exec, spawn } = require('child_process')
-const { installApp } = require('./installerEngine')
+const { installAll, cleanupTemp } = require('./installerEngine')
 
 let mainWindow
 
-// ── Phân biệt portable vs installer ─────────────────────
+// ── Portable vs installer ─────────────────────────────────
 const IS_PORTABLE = !!process.env.PORTABLE_EXECUTABLE_DIR
 
-// Gom toàn bộ Electron cache vào 1 chỗ duy nhất
 if (IS_PORTABLE) {
   app.setPath('userData', path.join(process.env.PORTABLE_EXECUTABLE_DIR, '.cache'))
 } else {
   app.setPath('userData', path.join(os.homedir(), 'AppData', 'Roaming', '1ClickSetup'))
 }
 
-// apps.json: cạnh .exe (portable) hoặc AppData\Roaming (installer)
 const DATA_DIR = IS_PORTABLE
   ? process.env.PORTABLE_EXECUTABLE_DIR
   : path.join(os.homedir(), 'AppData', 'Roaming', '1ClickSetup')
@@ -25,17 +23,28 @@ const DATA_DIR = IS_PORTABLE
 const APPS_PATH = path.join(DATA_DIR, 'apps.json')
 const DEFAULT_APPS_PATH = path.join(__dirname, 'apps.json')
 
+// ── App data helpers ──────────────────────────────────────
 function loadApps() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  if (!fs.existsSync(APPS_PATH)) fs.copyFileSync(DEFAULT_APPS_PATH, APPS_PATH)
-  return JSON.parse(fs.readFileSync(APPS_PATH, 'utf8'))
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+    if (!fs.existsSync(APPS_PATH)) fs.copyFileSync(DEFAULT_APPS_PATH, APPS_PATH)
+    return JSON.parse(fs.readFileSync(APPS_PATH, 'utf8'))
+  } catch (e) {
+    // apps.json bị hỏng → khôi phục từ default
+    fs.copyFileSync(DEFAULT_APPS_PATH, APPS_PATH)
+    return JSON.parse(fs.readFileSync(DEFAULT_APPS_PATH, 'utf8'))
+  }
 }
 
 function saveApps(apps) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  fs.writeFileSync(APPS_PATH, JSON.stringify(apps, null, 2), 'utf8')
+  // Ghi atomic: viết vào tmp rồi rename tránh mất dữ liệu khi app crash giữa chừng
+  const tmp = APPS_PATH + '.tmp'
+  fs.writeFileSync(tmp, JSON.stringify(apps, null, 2), 'utf8')
+  fs.renameSync(tmp, APPS_PATH)
 }
 
+// ── Window ────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 760,
@@ -62,14 +71,12 @@ app.on('window-all-closed', () => {
   app.quit()
 })
 
-// ── Portable: xoá sạch khi đóng app (VBScript, hoàn toàn ẩn) ──
+// ── Portable cleanup ──────────────────────────────────────
 function schedulePortableCleanup() {
   const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
-
-  // Dùng double-backslash cho VBScript path
-  const appsJson  = path.join(exeDir, 'apps.json').split('/').join('\\')
-  const cacheDir  = path.join(exeDir, '.cache').split('/').join('\\')
-  const tmpDir    = path.join(os.tmpdir(), '1clicksetup_tmp').split('/').join('\\')
+  const appsJson = path.join(exeDir, 'apps.json').replace(/\//g, '\\')
+  const cacheDir = path.join(exeDir, '.cache').replace(/\//g, '\\')
+  const tmpDir = path.join(os.tmpdir(), '1clicksetup_tmp').replace(/\//g, '\\')
 
   const lines = [
     'WScript.Sleep 2000',
@@ -85,37 +92,26 @@ function schedulePortableCleanup() {
 
   const scriptPath = path.join(os.tmpdir(), '_1cs_cleanup.vbs')
   fs.writeFileSync(scriptPath, lines.join('\r\n'), 'utf8')
-
   spawn('wscript.exe', ['//nologo', scriptPath], {
-    detached: true,
-    windowsHide: true,
-    stdio: 'ignore',
+    detached: true, windowsHide: true, stdio: 'ignore',
   }).unref()
 }
 
-// ── Xoá thư mục temp sau khi cài xong ───────────────────
-function cleanupTemp() {
-  const tmpDir = path.join(os.tmpdir(), '1clicksetup_tmp')
-  try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch (_) {}
-}
-
-// ── Install ──────────────────────────────────────────────
+// ── Install (song song) ───────────────────────────────────
 ipcMain.handle('start-install', async (event, selectedIds) => {
   const apps = loadApps()
   const selected = apps.filter(a => selectedIds.includes(a.id))
-  for (const appItem of selected) {
-    await installApp(appItem, (id, status, msg) => {
-      mainWindow.webContents.send('install-status', { id, status, msg })
-    })
-  }
+  await installAll(selected, (id, status, msg) => {
+    mainWindow.webContents.send('install-status', { id, status, msg })
+  })
   cleanupTemp()
   return { done: true }
 })
 
-// ── App registry CRUD ────────────────────────────────────
+// ── App CRUD ──────────────────────────────────────────────
 ipcMain.handle('get-apps', () => loadApps())
 
-ipcMain.handle('save-app', (event, appData) => {
+ipcMain.handle('save-app', (_, appData) => {
   const apps = loadApps()
   const idx = apps.findIndex(a => a.id === appData.id)
   if (idx >= 0) apps[idx] = appData
@@ -124,13 +120,12 @@ ipcMain.handle('save-app', (event, appData) => {
   return { ok: true }
 })
 
-ipcMain.handle('delete-app', (event, id) => {
-  const apps = loadApps().filter(a => a.id !== id)
-  saveApps(apps)
+ipcMain.handle('delete-app', (_, id) => {
+  saveApps(loadApps().filter(a => a.id !== id))
   return { ok: true }
 })
 
-ipcMain.handle('toggle-app', (event, id) => {
+ipcMain.handle('toggle-app', (_, id) => {
   const apps = loadApps()
   const a = apps.find(a => a.id === id)
   if (a) a.disabled = !a.disabled
@@ -138,35 +133,60 @@ ipcMain.handle('toggle-app', (event, id) => {
   return { ok: true }
 })
 
-// ── winget search ────────────────────────────────────────
-ipcMain.handle('winget-search', (event, query) => {
+ipcMain.handle('reorder-apps', (_, orderedIds) => {
+  const apps = loadApps()
+  const sorted = orderedIds.map(id => apps.find(a => a.id === id)).filter(Boolean)
+  const rest = apps.filter(a => !orderedIds.includes(a.id))
+  saveApps([...sorted, ...rest])
+  return { ok: true }
+})
+
+// ── winget search ─────────────────────────────────────────
+ipcMain.handle('winget-search', (_, query) => {
   return new Promise((resolve) => {
-    exec(`winget search "${query}" --accept-source-agreements`, { timeout: 15000, windowsHide: true }, (err, stdout) => {
-      if (err) { resolve({ results: [], error: 'winget không khả dụng trên máy này' }); return }
-      const lines = stdout.split('\n')
-      const headerIdx = lines.findIndex(l => l.includes('Id') && l.includes('Version'))
-      if (headerIdx < 0) { resolve({ results: [] }); return }
-      const header = lines[headerIdx]
-      const idStart = header.indexOf('Id')
-      const verStart = header.indexOf('Version')
-      const srcStart = header.indexOf('Source')
-      const results = []
-      for (let i = headerIdx + 2; i < lines.length; i++) {
-        const line = lines[i]
-        if (!line.trim() || line.startsWith('-')) continue
-        const name = line.substring(0, idStart).trim()
-        const id = line.substring(idStart, verStart > idStart ? verStart : line.length).trim()
-        const source = srcStart > 0 ? line.substring(srcStart).trim() : ''
-        if (name && id && source.includes('winget')) results.push({ name, id, source })
+    exec(
+      `winget search "${query.replace(/"/g, '')}" --accept-source-agreements`,
+      { timeout: 15000, windowsHide: true },
+      (err, stdout, stderr) => {
+        if (err) {
+          resolve({ results: [], error: 'winget không khả dụng — cài tại aka.ms/getwinget' })
+          return
+        }
+        const lines = stdout.split('\n')
+        const headerIdx = lines.findIndex(l => l.includes('Id') && l.includes('Version'))
+        if (headerIdx < 0) { resolve({ results: [] }); return }
+
+        const header = lines[headerIdx]
+        const idStart = header.indexOf('Id')
+        const verStart = header.indexOf('Version')
+        const srcStart = header.indexOf('Source')
+
+        const results = []
+        for (let i = headerIdx + 2; i < lines.length; i++) {
+          const line = lines[i]
+          if (!line.trim() || line.startsWith('-')) continue
+          const name = line.substring(0, idStart).trim()
+          const id = line.substring(idStart, verStart > idStart ? verStart : line.length).trim()
+          const source = srcStart > 0 ? line.substring(srcStart).trim() : ''
+          if (name && id && source.includes('winget')) results.push({ name, id, source })
+        }
+        resolve({ results: results.slice(0, 8) })
       }
-      resolve({ results: results.slice(0, 8) })
+    )
+  })
+})
+
+// ── Check winget available ────────────────────────────────
+ipcMain.handle('check-winget', () => {
+  return new Promise((resolve) => {
+    exec('winget --version', { timeout: 5000, windowsHide: true }, (err, stdout) => {
+      resolve({ available: !err, version: stdout?.trim() || null })
     })
   })
 })
 
-// ── Export apps.json ─────────────────────────────────────
+// ── Export apps.json ──────────────────────────────────────
 ipcMain.handle('export-apps', () => {
-  const { dialog } = require('electron')
   return dialog.showSaveDialog(mainWindow, {
     defaultPath: 'apps.json',
     filters: [{ name: 'JSON', extensions: ['json'] }]
@@ -176,5 +196,24 @@ ipcMain.handle('export-apps', () => {
       return { ok: true }
     }
     return { ok: false }
+  })
+})
+
+// ── Import apps.json ──────────────────────────────────────
+ipcMain.handle('import-apps', () => {
+  return dialog.showOpenDialog(mainWindow, {
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile']
+  }).then(result => {
+    if (result.canceled || !result.filePaths.length) return { ok: false }
+    try {
+      const raw = fs.readFileSync(result.filePaths[0], 'utf8')
+      const imported = JSON.parse(raw)
+      if (!Array.isArray(imported)) return { ok: false, error: 'File JSON không hợp lệ' }
+      saveApps(imported)
+      return { ok: true, count: imported.length }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
   })
 })

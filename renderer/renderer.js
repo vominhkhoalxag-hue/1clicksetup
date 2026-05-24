@@ -1,4 +1,4 @@
-// renderer.js
+// renderer.js — v1.1.0
 
 let APPS = []
 let installState = {}
@@ -14,14 +14,38 @@ async function init() {
   APPS.forEach(a => { installState[a.id] = { checked: false, status: 'idle' } })
   renderGrid()
   renderManageList()
+  checkWingetAvailable()
+
   window.api.onStatus(({ id, status, msg }) => {
     if (!installState[id]) installState[id] = {}
     installState[id].status = status
     renderGrid()
     updateProgress()
-    const type = status === 'done' ? 'ok' : status === 'error' ? 'err' : status === 'retrying' ? 'warn' : 'info'
+    const type = status === 'done' ? 'ok'
+               : status === 'error' ? 'err'
+               : status === 'retrying' ? 'warn'
+               : 'info'
     if (msg) appendLog(msg, type)
+
+    // Nếu tất cả đã xong (song song) → unlock nút
+    const selected = APPS.filter(a => !a.disabled && installState[a.id]?.checked)
+    const allDone = selected.every(a => ['done','error'].includes(installState[a.id]?.status))
+    if (allDone && installing) {
+      finishInstall(selected)
+    }
   })
+}
+
+// ── Kiểm tra winget ───────────────────────────────────────
+async function checkWingetAvailable() {
+  const { available, version } = await window.api.checkWinget()
+  const banner = document.getElementById('winget-banner')
+  if (!available) {
+    banner.style.display = 'flex'
+  } else {
+    banner.style.display = 'none'
+    if (version) appendLog(`winget ${version} — sẵn sàng`, 'ok')
+  }
 }
 
 // ── Tab switching ─────────────────────────────────────────
@@ -39,7 +63,7 @@ function renderGrid() {
   const active = APPS.filter(a => !a.disabled)
   const grid = document.getElementById('app-grid')
   const statusIcons = { idle:'○', installing:'◉', retrying:'↺', done:'✓', error:'✗', log:'◉' }
-  const statusCls = { idle:'st-idle', installing:'st-installing', retrying:'st-retrying', done:'st-done', error:'st-error', log:'st-installing' }
+  const statusCls   = { idle:'st-idle', installing:'st-installing', retrying:'st-retrying', done:'st-done', error:'st-error', log:'st-installing' }
 
   grid.innerHTML = active.map(a => {
     const s = installState[a.id] || { checked: false, status: 'idle' }
@@ -73,12 +97,17 @@ function toggle(id) {
 }
 function selectAll() {
   if (installing) return
-  APPS.filter(a => !a.disabled).forEach(a => { installState[a.id] = installState[a.id] || {}; installState[a.id].checked = true })
+  APPS.filter(a => !a.disabled).forEach(a => {
+    installState[a.id] = installState[a.id] || {}
+    installState[a.id].checked = true
+  })
   renderGrid()
 }
 function clearAll() {
   if (installing) return
-  APPS.filter(a => !a.disabled).forEach(a => { if (installState[a.id]) installState[a.id].checked = false })
+  APPS.filter(a => !a.disabled).forEach(a => {
+    if (installState[a.id]) installState[a.id].checked = false
+  })
   renderGrid()
 }
 
@@ -90,7 +119,7 @@ function appendLog(msg, type = 'info') {
   const p = document.createElement('p')
   p.innerHTML = `<span class="log-t">${mm}:${ss}</span><span class="log-${type}">${esc(msg)}</span>`
   box.appendChild(p)
-  while (box.children.length > 200) box.removeChild(box.firstChild)
+  while (box.children.length > 300) box.removeChild(box.firstChild)
   box.scrollTop = box.scrollHeight
 }
 
@@ -107,22 +136,33 @@ function updateProgress() {
 async function startInstall() {
   const selected = APPS.filter(a => !a.disabled && installState[a.id]?.checked)
   if (!selected.length) { appendLog('Chưa chọn ứng dụng nào.', 'warn'); return }
+
   installing = true
   startTime = Date.now()
-  document.getElementById('btn-install').disabled = true
+  const btn = document.getElementById('btn-install')
+  btn.disabled = true
+  btn.textContent = '⏳ Đang cài...'
   document.getElementById('log-box').innerHTML = ''
-  appendLog(`Bắt đầu cài ${selected.length} ứng dụng...`, 'info')
+  appendLog(`Bắt đầu cài ${selected.length} ứng dụng (song song, tối đa 3 cùng lúc)...`, 'info')
+
   try {
     await window.api.startInstall(selected.map(a => a.id))
   } catch (e) {
-    appendLog(`Lỗi: ${e.message}`, 'err')
+    appendLog(`Lỗi hệ thống: ${e.message}`, 'err')
+    finishInstall(selected)
   }
+}
+
+function finishInstall(selected) {
+  if (!installing) return
+  installing = false
   const errs = selected.filter(a => installState[a.id]?.status === 'error').length
   const ok = selected.length - errs
   appendLog('─────────────────────────────────────', 'dim')
   appendLog(`Hoàn tất: ${ok}/${selected.length} thành công${errs ? `, ${errs} lỗi` : ''}`, errs ? 'warn' : 'ok')
-  installing = false
-  document.getElementById('btn-install').disabled = false
+  const btn = document.getElementById('btn-install')
+  btn.disabled = false
+  btn.textContent = '⚡ Cài đặt ngay'
 }
 
 function resetAll() {
@@ -146,12 +186,12 @@ function renderManageList() {
     const method = a.install?.windows?.winget
       ? `winget: ${a.install.windows.winget}`
       : a.install?.windows?.url?.download
-        ? `URL: ${a.install.windows.url.download.substring(0, 40)}...`
+        ? `URL: ${a.install.windows.url.download.substring(0, 45)}...`
         : 'Chưa cấu hình'
     return `<div class="manage-item${a.disabled ? ' is-disabled' : ''}">
       <div class="mi-icon">${a.icon || '📦'}</div>
       <div class="mi-info">
-        <div class="mi-name">${esc(a.name)}${a.disabled ? ' <span style="font-size:9px;color:#3a3a6a">[ẩn]</span>' : ''}</div>
+        <div class="mi-name">${esc(a.name)}${a.disabled ? ' <span class="tag-hidden">[ẩn]</span>' : ''}</div>
         <div class="mi-meta">${esc(method)}</div>
       </div>
       <div class="mi-actions">
@@ -166,19 +206,36 @@ function renderManageList() {
 async function toggleAppDisabled(id) {
   await window.api.toggleApp(id)
   APPS = await window.api.getApps()
-  renderManageList()
-  renderGrid()
+  renderManageList(); renderGrid()
 }
 
 async function deleteApp(id) {
   const app = APPS.find(a => a.id === id)
-  if (!app) return
-  if (!confirm(`Xoá "${app.name}" khỏi danh sách?`)) return
+  if (!app || !confirm(`Xoá "${app.name}" khỏi danh sách?`)) return
   await window.api.deleteApp(id)
   APPS = await window.api.getApps()
   delete installState[id]
-  renderManageList()
-  renderGrid()
+  renderManageList(); renderGrid()
+}
+
+// ── Import / Export ───────────────────────────────────────
+async function importApps() {
+  const result = await window.api.importApps()
+  if (result.ok) {
+    APPS = await window.api.getApps()
+    APPS.forEach(a => { if (!installState[a.id]) installState[a.id] = { checked: false, status: 'idle' } })
+    renderManageList(); renderGrid()
+    showToast(`✓ Đã import ${result.count} app`)
+  } else if (result.error) {
+    showToast(`✗ Lỗi import: ${result.error}`, true)
+  }
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.className = 'toast' + (isError ? ' toast-err' : ' toast-ok') + ' show'
+  setTimeout(() => t.classList.remove('show'), 3000)
 }
 
 // ── Modal ─────────────────────────────────────────────────
@@ -195,12 +252,10 @@ function openEditModal(id) {
   editingId = id
   document.getElementById('modal-title').textContent = `Sửa: ${app.name}`
   clearModalFields()
-
   document.getElementById('f-name').value = app.name || ''
   document.getElementById('f-cat').value = app.category || ''
   document.getElementById('f-icon').value = app.icon || ''
   document.getElementById('f-verify').value = app.verify?.path || ''
-
   if (app.install?.windows?.winget) {
     setMethod('winget')
     document.getElementById('f-winget').value = app.install.windows.winget
@@ -209,7 +264,6 @@ function openEditModal(id) {
     document.getElementById('f-url').value = app.install.windows.url.download || ''
     document.getElementById('f-args').value = app.install.windows.url.silent_args || ''
   }
-
   openModal()
 }
 
@@ -217,22 +271,18 @@ function openModal() {
   document.getElementById('modal-overlay').classList.add('open')
   document.getElementById('search-input').focus()
 }
-
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open')
   clearSearchResults()
   editingId = null
 }
-
 function clearModalFields() {
-  ['f-name','f-cat','f-icon','f-winget','f-url','f-args','f-verify','search-input'].forEach(id => {
-    document.getElementById(id).value = ''
-  })
+  ;['f-name','f-cat','f-icon','f-winget','f-url','f-args','f-verify','search-input']
+    .forEach(id => { document.getElementById(id).value = '' })
   document.getElementById('f-icon').value = '📦'
   setMethod('winget')
   clearSearchResults()
 }
-
 function setMethod(method) {
   currentMethod = method
   document.getElementById('tab-winget').classList.toggle('active', method === 'winget')
@@ -251,10 +301,7 @@ async function saveAppFromModal() {
   const verifyPath = document.getElementById('f-verify').value.trim()
 
   const appData = {
-    id,
-    name,
-    category: cat,
-    icon,
+    id, name, category: cat, icon,
     install: { windows: {} },
     verify: verifyPath ? { path: verifyPath } : undefined,
   }
@@ -275,9 +322,9 @@ async function saveAppFromModal() {
   await window.api.saveApp(appData)
   APPS = await window.api.getApps()
   if (!installState[id]) installState[id] = { checked: false, status: 'idle' }
-  renderManageList()
-  renderGrid()
+  renderManageList(); renderGrid()
   closeModal()
+  showToast(`✓ Đã lưu "${name}"`)
 }
 
 // ── winget search ─────────────────────────────────────────
@@ -298,9 +345,7 @@ async function doSearch(q) {
   if (!results.length) { setSearchStatus('Không tìm thấy trên winget — thử nhập URL thủ công', 'text'); return }
 
   document.getElementById('search-status').style.display = 'none'
-  // remove old result items
   container.querySelectorAll('.search-item').forEach(el => el.remove())
-
   results.forEach(r => {
     const div = document.createElement('div')
     div.className = 'search-item'
@@ -317,9 +362,8 @@ function fillFromSearch(result) {
   document.getElementById('f-name').value = result.name
   document.getElementById('f-winget').value = result.id
   if (!document.getElementById('f-cat').value) document.getElementById('f-cat').value = 'Other'
-  if (!document.getElementById('f-icon').value || document.getElementById('f-icon').value === '📦') {
-    document.getElementById('f-icon').value = guessIcon(result.name)
-  }
+  const iconEl = document.getElementById('f-icon')
+  if (!iconEl.value || iconEl.value === '📦') iconEl.value = guessIcon(result.name)
   setMethod('winget')
   clearSearchResults()
   document.getElementById('search-input').value = ''
@@ -327,13 +371,15 @@ function fillFromSearch(result) {
 
 function guessIcon(name) {
   const n = name.toLowerCase()
-  if (n.includes('chrome') || n.includes('firefox') || n.includes('edge') || n.includes('browser')) return '🌐'
-  if (n.includes('code') || n.includes('studio') || n.includes('jetbrains') || n.includes('vim')) return '💻'
-  if (n.includes('obs') || n.includes('vlc') || n.includes('media') || n.includes('video')) return '🎥'
-  if (n.includes('zoom') || n.includes('teams') || n.includes('slack') || n.includes('zalo')) return '💬'
+  if (n.includes('chrome') || n.includes('firefox') || n.includes('edge') || n.includes('browser') || n.includes('cốc')) return '🌐'
+  if (n.includes('code') || n.includes('studio') || n.includes('jetbrains') || n.includes('vim') || n.includes('rider')) return '💻'
+  if (n.includes('obs') || n.includes('vlc') || n.includes('media') || n.includes('video') || n.includes('capcut')) return '🎥'
+  if (n.includes('zoom') || n.includes('teams') || n.includes('slack') || n.includes('zalo') || n.includes('chat')) return '💬'
   if (n.includes('git')) return '🔀'
   if (n.includes('zip') || n.includes('rar') || n.includes('7-zip')) return '📦'
-  if (n.includes('notepad') || n.includes('text')) return '📝'
+  if (n.includes('notepad') || n.includes('text') || n.includes('sublime')) return '📝'
+  if (n.includes('unikey') || n.includes('input') || n.includes('ime')) return '⌨️'
+  if (n.includes('remote') || n.includes('viewer') || n.includes('anydesk') || n.includes('ultraviewer')) return '🖥️'
   return '📦'
 }
 
@@ -344,7 +390,6 @@ function setSearchStatus(msg, type) {
   el.textContent = msg
   document.getElementById('search-results').classList.add('open')
 }
-
 function clearSearchResults() {
   const container = document.getElementById('search-results')
   container.classList.remove('open')

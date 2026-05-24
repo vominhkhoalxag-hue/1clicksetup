@@ -26,6 +26,20 @@ body {
 .dot-r{background:#ff5f57} .dot-y{background:#febc2e} .dot-g{background:#28c840}
 .win-title { flex:1; text-align:center; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#252550; }
 
+/* ── winget warning banner ── */
+#winget-banner {
+  display:none; align-items:center; gap:10px;
+  padding:8px 16px; background:#1a0c00;
+  border-bottom:1px solid #3a1c00; flex-shrink:0;
+}
+.banner-icon { font-size:14px; }
+.banner-text { flex:1; font-size:11px; color:#febc2e; }
+.banner-link {
+  font-size:11px; color:#febc2e; text-decoration:underline;
+  cursor:pointer; background:none; border:none; font-family:inherit;
+  padding:0;
+}
+
 /* ── Tab bar ── */
 #tabbar {
   display:flex; background:#06060f;
@@ -46,7 +60,7 @@ body {
 .view { display:none; flex:1; flex-direction:column; overflow:hidden; }
 .view.active { display:flex; }
 
-/* ── Shared layout ── */
+/* ── Shared ── */
 .pad { padding:16px; }
 .section-label { font-size:10px; color:#2e2e5a; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
 
@@ -79,7 +93,6 @@ body {
 }
 .app-card:hover { border-color:#252550; background:#0e0e28; }
 .app-card.selected { border-color:#3a5aff; background:#090922; }
-.app-card.disabled-app { opacity:.35; }
 .checkbox {
   width:15px; height:15px; border:1.5px solid #252550;
   border-radius:4px; background:#060616;
@@ -139,10 +152,7 @@ body {
 
 /* ── Manage view ── */
 #manage-view { padding:16px; gap:14px; overflow-y:auto; }
-
-.manage-toolbar {
-  display:flex; align-items:center; gap:8px;
-}
+.manage-toolbar { display:flex; align-items:center; gap:8px; }
 .manage-toolbar .spacer { flex:1; }
 .btn-primary {
   height:34px; padding:0 14px; background:#3a5aff;
@@ -181,11 +191,12 @@ body {
 }
 .icon-btn:hover { border-color:#252550; color:#8888cc; background:#0e0e28; }
 .icon-btn.danger:hover { border-color:#ff5f57; color:#ff5f57; background:#1a0808; }
+.tag-hidden { font-size:9px; color:#3a3a6a; }
 
-/* ── Add/Edit modal ── */
+/* ── Modal ── */
 #modal-overlay {
   display:none; position:fixed; inset:0;
-  background:rgba(0,0,0,.7); z-index:100;
+  background:rgba(0,0,0,.75); z-index:100;
   align-items:center; justify-content:center;
 }
 #modal-overlay.open { display:flex; }
@@ -208,10 +219,8 @@ body {
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 
-/* winget search results */
-#search-results {
-  margin-top:6px; display:none; flex-direction:column; gap:4px;
-}
+/* winget search */
+#search-results { margin-top:6px; display:none; flex-direction:column; gap:4px; }
 #search-results.open { display:flex; }
 .search-item {
   display:flex; align-items:center; gap:10px;
@@ -222,17 +231,12 @@ body {
 .search-item:hover { border-color:#3a5aff; background:#0a0a25; }
 .si-name { font-size:12px; color:#a0a0d0; font-weight:500; flex:1; }
 .si-id { font-size:10px; color:#2e2e60; font-family:monospace; }
-.si-badge {
-  font-size:9px; color:#28c840; background:#081808;
-  border:1px solid #1a3a1a; padding:1px 6px; border-radius:4px;
-}
+.si-badge { font-size:9px; color:#28c840; background:#081808; border:1px solid #1a3a1a; padding:1px 6px; border-radius:4px; }
 .search-status { font-size:11px; color:#2e2e5a; padding:8px 10px; }
 .search-spinner { color:#febc2e; animation:blink .8s infinite; }
 
-/* divider */
+/* Method toggle */
 .divider { height:1px; background:#0e0e28; margin:4px 0; }
-
-/* method toggle */
 .method-tabs { display:flex; gap:4px; margin-bottom:10px; }
 .method-tab {
   flex:1; height:30px; border-radius:6px;
@@ -241,11 +245,21 @@ body {
   font-family:inherit; transition:all .15s;
 }
 .method-tab.active { background:#0d0d28; border-color:#3a5aff; color:#4a6cff; }
-
 .url-fields { display:none; }
 .url-fields.open { display:block; }
 .winget-fields { display:none; }
 .winget-fields.open { display:block; }
+
+/* ── Toast ── */
+.toast {
+  position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(20px);
+  padding:8px 18px; border-radius:8px; font-size:12px; font-weight:500;
+  opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; z-index:200;
+  white-space:nowrap;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.toast-ok { background:#0d200d; border:1px solid #1a3a1a; color:#28c840; }
+.toast-err { background:#200d0d; border:1px solid #3a1a1a; color:#ff5f57; }
 </style>
 </head>
 <body>
@@ -256,8 +270,15 @@ body {
     <div class="dot dot-y" onclick="window.api.minimize()"></div>
     <div class="dot dot-g"></div>
   </div>
-  <div class="win-title">1ClickSetup — v1.0.0</div>
+  <div class="win-title">1ClickSetup — v1.1.0</div>
   <div style="width:42px"></div>
+</div>
+
+<!-- winget not found banner -->
+<div id="winget-banner">
+  <span class="banner-icon">⚠</span>
+  <span class="banner-text">winget chưa được cài — một số app sẽ không hoạt động.</span>
+  <button class="banner-link" onclick="require('electron').shell.openExternal('https://aka.ms/getwinget')">Cài winget</button>
 </div>
 
 <div id="tabbar">
@@ -270,7 +291,7 @@ body {
   <div class="top-row">
     <div>
       <div class="logo">1Click<span>Setup</span></div>
-      <div class="sub">Cài đặt tự động — Windows</div>
+      <div class="sub">Cài đặt tự động — Windows · song song</div>
     </div>
     <div class="sel-actions">
       <button class="sel-btn" onclick="selectAll()">Chọn tất cả</button>
@@ -309,6 +330,7 @@ body {
   <div class="manage-toolbar">
     <span class="section-label" style="margin:0">Danh sách ứng dụng</span>
     <div class="spacer"></div>
+    <button class="btn-ghost" onclick="importApps()">↑ Import JSON</button>
     <button class="btn-ghost" onclick="window.api.exportApps()">↓ Export JSON</button>
     <button class="btn-primary" onclick="openAddModal()">+ Thêm app</button>
   </div>
@@ -320,7 +342,6 @@ body {
   <div id="modal">
     <div class="modal-title" id="modal-title">Thêm ứng dụng mới</div>
 
-    <!-- Search box -->
     <div class="form-group">
       <label class="form-label">🔍 Tìm trên winget (gõ tên app)</label>
       <input class="form-input" id="search-input" placeholder="Ví dụ: Notepad++, VLC, 7-Zip..."
@@ -332,7 +353,6 @@ body {
 
     <div class="divider"></div>
 
-    <!-- Manual fields -->
     <div class="form-group">
       <label class="form-label">Tên hiển thị <span style="color:#ff5f57">*</span></label>
       <input class="form-input" id="f-name" placeholder="Google Chrome"/>
@@ -349,21 +369,18 @@ body {
       </div>
     </div>
 
-    <!-- Method toggle -->
     <div class="form-group">
       <label class="form-label">Phương thức cài đặt</label>
       <div class="method-tabs">
         <button class="method-tab active" id="tab-winget" onclick="setMethod('winget')">winget</button>
         <button class="method-tab" id="tab-url" onclick="setMethod('url')">URL download</button>
       </div>
-
       <div class="winget-fields open" id="winget-fields">
         <input class="form-input" id="f-winget" placeholder="Ví dụ: Google.Chrome"/>
         <div style="font-size:10px;color:#222248;margin-top:5px">
           Tìm ID tại: winget.run hoặc dùng ô tìm kiếm phía trên
         </div>
       </div>
-
       <div class="url-fields" id="url-fields">
         <input class="form-input" id="f-url" placeholder="https://example.com/setup.exe" style="margin-bottom:6px"/>
         <input class="form-input" id="f-args" placeholder="Silent args: /S hoặc /silent /install"/>
@@ -384,6 +401,9 @@ body {
     </div>
   </div>
 </div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
 
 <script src="renderer.js"></script>
 </body>
