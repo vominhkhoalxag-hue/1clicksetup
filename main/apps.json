@@ -1,0 +1,138 @@
+[
+  {
+    "id": "edge",
+    "name": "Microsoft Edge",
+    "category": "Browser",
+    "icon": "🌐",
+    "install": {
+      "windows": {
+        "winget": "Microsoft.Edge"
+      }
+    },
+    "verify": {
+      "path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+    }
+  },
+  {
+    "id": "chrome",
+    "name": "Google Chrome",
+    "category": "Browser",
+    "icon": "🌐",
+    "install": {
+      "windows": {
+        "winget": "Google.Chrome"
+      }
+    },
+    "verify": {
+      "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    }
+  },
+  {
+    "id": "coccoc",
+    "name": "Cốc Cốc",
+    "category": "Browser",
+    "icon": "🌐",
+    "install": {
+      "windows": {
+        "winget": "CocCoc.CocCoc"
+      }
+    },
+    "verify": {
+      "path": "%LOCALAPPDATA%\\CocCoc\\Browser\\Application\\browser.exe"
+    }
+  },
+  {
+    "id": "vscode",
+    "name": "Visual Studio Code",
+    "category": "Dev Tools",
+    "icon": "💻",
+    "install": {
+      "windows": {
+        "winget": "Microsoft.VisualStudioCode"
+      }
+    },
+    "verify": {
+      "path": "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe"
+    }
+  },
+  {
+    "id": "obs",
+    "name": "OBS Studio",
+    "category": "Media",
+    "icon": "🎥",
+    "install": {
+      "windows": {
+        "winget": "OBSProject.OBSStudio"
+      }
+    },
+    "verify": {
+      "path": "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"
+    }
+  },
+  {
+    "id": "ultraviewer",
+    "name": "UltraViewer",
+    "category": "Remote",
+    "icon": "🖥️",
+    "install": {
+      "windows": {
+        "winget": "DucFabulous.UltraViewer"
+      }
+    },
+    "verify": {
+      "path": "C:\\Program Files (x86)\\UltraViewer\\UltraViewer_Desktop.exe"
+    }
+  },
+  {
+    "id": "unikey",
+    "name": "UniKey",
+    "category": "Input",
+    "icon": "⌨️",
+    "note": "Shortcut + Startup tự động",
+    "install": {
+      "windows": {
+        "url": {
+          "download": "https://www.unikey.org/assets/release/unikey46RC2-230919-win64.zip",
+          "silent_args": null,
+          "type": "zip",
+          "extract_to": "%LOCALAPPDATA%\\UniKey"
+        }
+      }
+    },
+    "verify": {
+      "path": "%LOCALAPPDATA%\\UniKey\\UniKeyNT.exe"
+    },
+    "post_install": {
+      "shortcut": true,
+      "startup": true
+    }
+  },
+  {
+    "id": "zalo",
+    "name": "Zalo Desktop",
+    "category": "Chat",
+    "icon": "💬",
+    "install": {
+      "windows": {
+        "winget": "Zalo.Zalo"
+      }
+    },
+    "verify": {
+      "path": "%APPDATA%\\Zalo\\Zalo.exe"
+    }
+  },
+  {
+    "id": "capcut_1779628123403",
+    "name": "CapCut",
+    "category": "Video",
+    "icon": "🎬",
+    "install": {
+      "windows": {
+        "winget": "ByteDance.CapCut"
+      }
+    },
+    "verify": {
+      "path": "%LOCALAPPDATA%\\CapCut\\Apps\\CapCut.exe"
+    }
+  }
+]
