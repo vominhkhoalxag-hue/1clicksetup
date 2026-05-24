@@ -6,7 +6,11 @@
     "icon": "🌐",
     "install": {
       "windows": {
-        "winget": "Microsoft.Edge"
+        "winget": "Microsoft.Edge",
+        "url": {
+          "download": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/MicrosoftEdgeSetup.exe",
+          "silent_args": "/silent /install"
+        }
       }
     },
     "verify": {
@@ -20,7 +24,11 @@
     "icon": "🌐",
     "install": {
       "windows": {
-        "winget": "Google.Chrome"
+        "winget": "Google.Chrome",
+        "url": {
+          "download": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
+          "silent_args": "/qn"
+        }
       }
     },
     "verify": {
@@ -48,7 +56,11 @@
     "icon": "💻",
     "install": {
       "windows": {
-        "winget": "Microsoft.VisualStudioCode"
+        "winget": "Microsoft.VisualStudioCode",
+        "url": {
+          "download": "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user",
+          "silent_args": "/VERYSILENT /NORESTART /MERGETASKS=!runcode"
+        }
       }
     },
     "verify": {
@@ -62,7 +74,11 @@
     "icon": "🎥",
     "install": {
       "windows": {
-        "winget": "OBSProject.OBSStudio"
+        "winget": "OBSProject.OBSStudio",
+        "url": {
+          "download": "https://github.com/obsproject/obs-studio/releases/latest/download/OBS-Studio-Windows-Installer-x64.exe",
+          "silent_args": "/S"
+        }
       }
     },
     "verify": {
@@ -76,7 +92,11 @@
     "icon": "🖥️",
     "install": {
       "windows": {
-        "winget": "DucFabulous.UltraViewer"
+        "winget": "DucFabulous.UltraViewer",
+        "url": {
+          "download": "https://www.ultraviewer.net/media/UltraViewer_setup_6.6_en.exe",
+          "silent_args": "/VERYSILENT /NORESTART"
+        }
       }
     },
     "verify": {
