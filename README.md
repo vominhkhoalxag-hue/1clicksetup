@@ -80,7 +80,26 @@ npm start
 
 Mở tab **⚙ Quản lý App** → **+ Thêm app** → gõ tên vào ô tìm kiếm để tìm trên winget.
 
-Hoặc sửa trực tiếp `main/apps.json`. Tìm winget ID tại: [winget.run](https://winget.run)
+Hoặc sửa trực tiếp `main/apps.json`.
+
+```json
+{
+  "id": "notepadpp",
+  "name": "Notepad++",
+  "category": "Dev Tools",
+  "icon": "📝",
+  "install": {
+    "windows": {
+      "winget": "Notepad++.Notepad++"
+    }
+  },
+  "verify": {
+    "path": "C:\\Program Files\\Notepad++\\notepad++.exe"
+  }
+}
+```
+
+Tìm winget ID tại: [winget.run](https://winget.run)
 
 ---
 
