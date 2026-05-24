@@ -29,6 +29,7 @@
 | 6 | UltraViewer | Remote | |
 | 7 | UniKey | Input | ★ Tự tạo shortcut Desktop + thêm vào Startup |
 | 8 | Zalo Desktop | Chat | |
+| 9 | CapCut | Media | |
 
 > Có thể thêm/sửa/xoá app trực tiếp trên UI — tab **⚙ Quản lý App**
 
